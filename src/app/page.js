@@ -1,11 +1,10 @@
 import Banner from "./components/tour/Banner/Banner";
-import Fun from "./components/tour/Fun";
 import Property from "./components/tour/Property/Property";
 
 import { Roboto } from "next/font/google";
 import TanguarHaorHouseboat from "./components/tour/TanguarHaorHouseboat";
 const roboto = Roboto({ subsets: ["latin"], weight: ["400"] });
-
+export const dynamic = "force-dynamic";
 export default function Home() {
   
   return (
