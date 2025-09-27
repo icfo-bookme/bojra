@@ -1,11 +1,13 @@
+import propertySummary from "@/services/tour/propertySummary";
 import Banner from "./components/tour/Banner/Banner";
 import Property from "./components/tour/Property/Property";
 import TanguarHaorHouseboat from "./components/tour/TanguarHaorHouseboat";
 import { Roboto } from "next/font/google";
+import PropertyList from "./components/tour/Property/Property";
 
 const roboto = Roboto({ subsets: ["latin"], weight: ["400"] });
 
-// Force this page to be dynamic (like getServerSideProps)
+
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
@@ -16,7 +18,7 @@ export default async function Home() {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_BASE_URL}/api/carousel-slider/destination/4`,
       {
-        cache: "no-store", // prevents caching, similar to getServerSideProps
+        cache: "no-store", 
       }
     );
 
@@ -28,7 +30,7 @@ export default async function Home() {
   } catch (error) {
     console.error("Error fetching banner data:", error);
   }
-
+const result = await propertySummary(4);
   return (
     <main className={`${roboto.className}`}>
       {/* Banner Section */}
@@ -41,7 +43,7 @@ export default async function Home() {
         <div className="mt-[12px] md:mt-10 w-[100%] md:w-[80%] 2xl:w-[1440px] gap-5 lg:mx-auto">
           {/* Property List */}
           <div className="lg:overflow-hidden">
-            <Property />
+             <PropertyList initialData={result} id= {4}/>
           </div>
         </div>
       </div>
