@@ -1,68 +1,78 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { Roboto } from "next/font/google";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { TailSpin } from "react-loader-spinner";
+import { Roboto } from "next/font/google";
+import { RangeSlider } from "flowbite-react";
+import { useForm } from "react-hook-form";
 import { useSearch } from "@/SearchContext";
 import getContactNumber from "@/services/tour/getContactNumber";
-import { usePagination } from "@/services/tour/usePagination";
+import { FaFilter, FaPhone, FaSortAmountDown, FaWhatsapp } from "react-icons/fa";
 import Pagination from "../Pagination/Pagination";
-import PropertyCard from "./PropertyCard";
-import SearchAndFilter from "./SearchAndFilter";
-import NoResults from "./NoResults";
+import { usePagination } from "@/services/tour/usePagination";
+import { IoSearch, IoClose } from "react-icons/io5";
+import IconShow from "@/services/tour/IconShow";
 
 const roboto = Roboto({ subsets: ["latin"], weight: ["400"] });
 
-export default function Property({ initialData, id }) {
+export default function Property({ propertyData }) {
   const { searchTerm, setSearchTerm } = useSearch();
   const { currentPage, handlePageChange, setCurrentPage } = usePagination();
-  const [data, setData] = useState(initialData || []);
+  const [data, setData] = useState(propertyData || []);
   const [price, setPrice] = useState(10000);
   const [sortOption, setSortOption] = useState("");
-  const [contactNumber, setContactNumber] = useState([]);
-  const [loading, setLoading] = useState(!initialData);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(!!initialData);
+  const [contactNumber, setContactNumber] = useState(null);
+  const [loading, setLoading] = useState(false); 
+  const [initialLoadComplete, setInitialLoadComplete] = useState(true); 
+  const searchInputRef = useRef(null);
+  const propertyListRef = useRef(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [propertyNames, setPropertyNames] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
 
   const itemsPerPage = 10;
-  const propertyListRef = useRef(null);
 
-  // Use initialData if provided, otherwise fetch data
+  const { register, handleSubmit } = useForm();
+
+  // Initialize data from SSR props
   useEffect(() => {
-    if (initialData) {
-      setData(initialData);
-      setLoading(false);
-      setInitialLoadComplete(true);
-      
-      // Extract property names for suggestions
-      const names = initialData.map(property => property.property_name);
-      setPropertyNames(names);
-    } else {
-      async function fetchData() {
-        try {
-          setLoading(true);
-          const locationId = 4;
-          const result = await propertySummary(locationId);
-          setData(result);
-          
-          // Extract property names for suggestions
-          const names = result.map(property => property.property_name);
-          setPropertyNames(names);
-        } catch (error) {
-          console.error("Error fetching property data:", error);
-        } finally {
-          setLoading(false);
-          setInitialLoadComplete(true);
-        }
-      }
-      fetchData();
+    if (propertyData) {
+      setData(propertyData);
     }
-  }, [initialData, id]);
+  }, [propertyData]);
 
-  // Fetch contact number
+  // Memoized property names for suggestions
+  const propertyNames = useMemo(() => 
+    data.map(property => property.property_name),
+    [data]
+  );
+
+  // Form submission handler
+  const onSubmit = useCallback((formData) => {
+    const previousScrollPosition = window.scrollY;
+    setSearchTerm(formData.property);
+    setCurrentPage(1);
+    setShowSuggestions(false);
+    setTimeout(() => window.scrollTo(0, previousScrollPosition), 0);
+  }, [setSearchTerm, setCurrentPage]);
+
+  // Clear search handler
+  const handleClearSearch = useCallback(() => {
+    const previousScrollPosition = window.scrollY;
+    setSearchTerm("");
+    setCurrentPage(1);
+    setShowSuggestions(false);
+    setTimeout(() => window.scrollTo(0, previousScrollPosition), 0);
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+    }
+  }, [setSearchTerm, setCurrentPage]);
+
+  // Fetch contact number (only client-side dependency)
   useEffect(() => {
-    async function fetchData() {
+    async function fetchContactNumber() {
       try {
         const result = await getContactNumber();
         setContactNumber(result);
@@ -70,26 +80,50 @@ export default function Property({ initialData, id }) {
         console.error("Error fetching contact number data:", error);
       }
     }
-    fetchData();
+    fetchContactNumber();
   }, []);
+
+  // Update filtered suggestions when search term changes
+  useEffect(() => {
+    if (searchTerm && searchTerm.length > 0) {
+      const normalizedSearchTerm = normalizeString(searchTerm);
+      const filtered = propertyNames.filter(name => 
+        normalizeString(name).includes(normalizedSearchTerm)
+      );
+      setFilteredSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setFilteredSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [searchTerm, propertyNames]);
 
   // Reset to first page when search term changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, setCurrentPage]);
 
+  // Normalize string for search (handles Bangla and English)
+  const normalizeString = useCallback((str) => {
+    return str
+      ? str
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+      : "";
+  }, []);
+
+  // Get minimum price for a property
+  const getMinPrice = useCallback((property) => {
+    const prices = property.property_uinit?.flatMap((unit) =>
+      unit.price?.map((priceObj) => priceObj.price)
+    ) || [];
+    return prices.length > 0 ? Math.min(...prices) : Infinity;
+  }, []);
+
   // Sorting logic
   const sortedData = useMemo(() => {
-    if (!sortOption) {
-      return data;
-    }
-
-    const getMinPrice = (property) => {
-      const prices = property.property_uinit?.flatMap((unit) =>
-        unit.price?.map((priceObj) => priceObj.price)
-      ) || [];
-      return prices.length > 0 ? Math.min(...prices) : Infinity;
-    };
+    if (!sortOption) return data;
 
     const sorted = [...data].sort((a, b) => {
       const priceA = getMinPrice(a);
@@ -103,19 +137,9 @@ export default function Property({ initialData, id }) {
     });
 
     return sorted;
-  }, [data, sortOption]);
+  }, [data, sortOption, getMinPrice]);
 
-  // Normalize string for search
-  const normalizeString = (str) => {
-    return str
-      ? str
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-      : "";
-  };
-
-  // Filter data
+  // Filter data with improved search
   const filteredData = useMemo(() => {
     let filtered = sortedData;
 
@@ -129,15 +153,13 @@ export default function Property({ initialData, id }) {
 
     if (price <= 9500) {
       filtered = filtered.filter((property) => {
-        const prices = property.property_uinit?.flatMap(
-          (unit) => unit.price?.map((priceObj) => priceObj.price) || []
-        );
-        return prices.length > 0 && Math.min(...prices) <= price;
+        const minPrice = getMinPrice(property);
+        return minPrice <= price;
       });
     }
 
     return filtered;
-  }, [sortedData, searchTerm, price]);
+  }, [sortedData, searchTerm, price, normalizeString, getMinPrice]);
 
   // Paginated data
   const paginatedData = useMemo(() => {
@@ -149,14 +171,24 @@ export default function Property({ initialData, id }) {
   // Total pages
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  // Handle card click for scroll preservation
-  const handleCardClick = (index) => {
-    sessionStorage.setItem("scrollPosition", window.scrollY);
-    sessionStorage.setItem("lastViewedCardIndex", index);
-    sessionStorage.setItem("currentPage", currentPage);
-  };
+  // Handle suggestion selection
+  const handleSuggestionClick = useCallback((suggestion) => {
+    setSearchTerm(suggestion);
+    setCurrentPage(1);
+    if (searchInputRef.current) {
+      searchInputRef.current.value = suggestion;
+    }
+    setShowSuggestions(false);
+  }, [setSearchTerm, setCurrentPage]);
 
-  // Restore scroll position
+  // Save scroll position, card index, and current page
+  const handleCardClick = useCallback((index) => {
+    sessionStorage.setItem("scrollPosition", window.scrollY.toString());
+    sessionStorage.setItem("lastViewedCardIndex", index.toString());
+    sessionStorage.setItem("currentPage", currentPage.toString());
+  }, [currentPage]);
+
+  // Restore scroll position, card index, and current page
   useEffect(() => {
     const scrollPosition = sessionStorage.getItem("scrollPosition");
     const lastViewedCardIndex = sessionStorage.getItem("lastViewedCardIndex");
@@ -178,18 +210,52 @@ export default function Property({ initialData, id }) {
         sessionStorage.removeItem("scrollPosition");
         sessionStorage.removeItem("lastViewedCardIndex");
         sessionStorage.removeItem("currentPage");
-      }, 1000);
+      }, 100);
     } else {
       window.scrollTo(0, 0);
     }
-  }, [sortedData, setCurrentPage]);
+  }, [setCurrentPage]);
 
-  // Handle clear filters
-  const handleClearFilters = () => {
-    setSearchTerm("");
-    setPrice(10000);
-    setSortOption("");
+  // Handle search input change
+  const handleSearchChange = useCallback((e) => {
+    const previousScrollPosition = window.scrollY;
+    setSearchTerm(e.target.value);
     setCurrentPage(1);
+    setTimeout(() => {
+      window.scrollTo(0, previousScrollPosition);
+    }, 0);
+  }, [setSearchTerm, setCurrentPage]);
+
+  // Handle price change
+  const handlePriceChange = useCallback((e) => {
+    const previousScrollPosition = window.scrollY;
+    setPrice(Number(e.target.value));
+    setTimeout(() => {
+      window.scrollTo(0, previousScrollPosition);
+    }, 0);
+  }, []);
+
+  // Handle sort change
+  const handleSortChange = useCallback((e) => {
+    const previousScrollPosition = window.scrollY;
+    setSortOption(e.target.value);
+    setCurrentPage(1);
+    setTimeout(() => {
+      window.scrollTo(0, previousScrollPosition);
+    }, 0);
+  }, [setCurrentPage]);
+
+  // Format price display
+  const formatPrice = (price) => {
+    return parseInt(price).toLocaleString() + (parseInt(price) > 9500 ? "+" : "") + " TK";
+  };
+
+  // Get starting price for property
+  const getStartingPrice = (property) => {
+    const prices = property.property_uinit?.flatMap((unit) =>
+      unit.price?.map((priceObj) => priceObj.price)
+    ) || [];
+    return prices.length > 0 ? `${Math.min(...prices).toLocaleString()} TK` : "N/A";
   };
 
   return (
@@ -197,44 +263,317 @@ export default function Property({ initialData, id }) {
       className={`${roboto.className} bg-white lg:container lg:w-full mx-auto lg:px-4 z-20`}
       ref={propertyListRef}
     >
-      <SearchAndFilter
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        price={price}
-        setPrice={setPrice}
-        sortOption={sortOption}
-        setSortOption={setSortOption}
-        setCurrentPage={setCurrentPage}
-        propertyNames={propertyNames}
-        isSearchFocused={isSearchFocused}
-        setIsSearchFocused={setIsSearchFocused}
-      />
-
-      {/* Loading Spinner */}
-      {loading ? (
-        <div className="flex justify-center items-center mt-20">
-          <TailSpin height="80" width="80" color="#0678B4" />
-        </div>
-      ) : (
-        <>
-          {/* No results found */}
-          {initialLoadComplete && filteredData.length === 0 && (
-            <NoResults searchTerm={searchTerm} onClearFilters={handleClearFilters} />
-          )}
-
-          {/* Property List */}
-          {paginatedData.length > 0 &&
-            paginatedData.map((property, index) => (
-              <PropertyCard
-                key={property.property_id}
-                property={property}
-                index={index}
-                contactNumber={contactNumber}
-                onCardClick={handleCardClick}
+      <div className={`mb-8 bg-white ${isSearchFocused ? 'absolute inset-0 h-72 pt-20 px-4 pb-4 z-20' : ''}`}>
+        <div className={`flex flex-col md:flex-row bg-white gap-6 mb-6`}>
+          {/* Search Form */}
+          <div className={`flex-1 lg:hidden relative`}>
+            <form onSubmit={handleSubmit(onSubmit)} className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <IoSearch className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                {...register("property")}
+                ref={searchInputRef}
+                type="text"
+                defaultValue={searchTerm}
+                className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 placeholder-gray-400 transition duration-200"
+                onChange={handleSearchChange}
+                onFocus={() => {
+                  setIsSearchFocused(true);
+                  if (searchTerm && filteredSuggestions.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setIsSearchFocused(false);
+                    setShowSuggestions(false);
+                  }, 200);
+                }}
+                placeholder="Search properties by name..."
+                autoComplete="off"
               />
-            ))}
-        </>
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <IoClose className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
+            </form>
+
+            {/* Custom Suggestions Dropdown */}
+            {showSuggestions && (
+              <div className="absolute z-30 w-full mt-1 text-black bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                {filteredSuggestions.map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className="px-4 py-2 hover:bg-blue-50 cursor-pointer"
+                    onMouseDown={() => handleSuggestionClick(suggestion)}
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filter and Sort Row */}
+        <div className="flex flex-col lg:flex-row gap-6 w-full">
+          {/* Price Filter */}
+          <div className="w-full lg:w-2/3 bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-blue-700">
+                <FaFilter className="h-5 w-5" />
+                <span className="text-sm font-medium">Price Range</span>
+              </div>
+              <div className="flex-1 flex items-center gap-4">
+                <RangeSlider
+                  id="default-range"
+                  min={0}
+                  max={10000}
+                  step={500}
+                  value={price}
+                  onChange={handlePriceChange}
+                  tooltip="true"
+                  tooltipposition="top" 
+                  className="w-full mt-[-18px] appearance-none h-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm font-bold text-blue-700 whitespace-nowrap min-w-[90px]">
+                  {formatPrice(price)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sorting Dropdown */}
+          <div className="w-full lg:w-1/3 flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-2 text-gray-700">
+              <FaSortAmountDown className="h-4 w-4" />
+              <span className="text-sm font-medium">Sort by:</span>
+            </div>
+            <select
+              className="w-full border border-gray-300 rounded-lg text-gray-700 px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 appearance-none bg-white shadow-sm"
+              value={sortOption}
+              onChange={handleSortChange}
+            >
+              <option value="2">Price: Low to High</option>
+              <option value="3">Price: High to Low</option>
+              <option value="">Most Popular</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* No results found */}
+      {filteredData.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="text-2xl font-bold text-gray-700 mb-4">
+            No properties found
+          </div>
+          <p className="text-gray-500 mb-6">
+            {searchTerm
+              ? `No results found for "${searchTerm}"`
+              : "No properties match your current filters"}
+          </p>
+          <button
+            onClick={handleClearSearch}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Reset Filters
+          </button>
+        </div>
       )}
+
+      {/* Property List */}
+      {paginatedData.length > 0 &&
+        paginatedData.map((property, index) => (
+          <div key={property.property_id} data-index={index} className="mb-5">
+            {/* Property Card */}
+            <div className="shadow-custom flex flex-col lg:flex-row gap-5 pt-5 pl-5 pr-5 pb-0 rounded bg-white relative">
+              {/* Discount Badge */}
+              {property.discout && (
+                <div className="absolute top-5 right-5 lg:top-5 lg:left-[315px] z-10 w-14 h-14 p-2 text-white text-center font-semibold text-sm bg-red-700 rounded-full flex items-center justify-center">
+                  {property.discout}
+                </div>
+              )}
+              
+              <div className="md:min-w-[400px] min-w-0 md:min-h-[300px] min-h-0 relative">
+                <Image
+                  src={`${process.env.NEXT_PUBLIC_BASE_URL}/storage/${property.main_img}`}
+                  alt={property.property_name}
+                  width={500}
+                  height={300}
+                  className="object-cover w-full md:w-[300px] md:h-[230px] h-[200px] mx-auto"
+                />
+              </div>
+
+              <div className="flex flex-col w-full pr-4 pb-4">
+                <Link
+                  href={`/Property/${property.property_id}`}
+                  className="cursor-pointer"
+                  onClick={() => handleCardClick(index)}
+                >
+                  <h1 className="font-heading font-semibold text-lg text-[#00026E]">
+                    {property.property_name}
+                  </h1>
+                </Link>
+
+                <h1 className="font-normal text-sm text-[#00026E] text-right md:mb-0 mb-[20px]">
+                  Starting from <br />
+                  <span className="font-bold text-lg text-blue-900">
+                    {getStartingPrice(property)}
+                  </span>
+                </h1>
+
+                {property.property_summaries && (
+                  <div className="flex flex-col gap-3">
+                    {/* Property Summaries */}
+                    <div className="flex flex-wrap gap-4">
+                      {property.property_summaries
+                        .slice(0, 1)
+                        .map((summary) => (
+                          <div
+                            key={summary.id}
+                            className="flex items-center text-blue-700"
+                          >
+                            <IconShow iconName={summary.icons.icon_name} />
+                            <span className="ml-2 text-sm text-blue-900">
+                              {summary.value}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="flex flex-wrap justify-between items-center gap-4">
+                      <div className="flex gap-4 w-full md:w-auto">
+                        {property.property_summaries
+                          .slice(1, 3)
+                          .map((summary) => (
+                            <div
+                              key={summary.id}
+                              className="flex items-center text-gray-700"
+                            >
+                              <IconShow iconName={summary.icons.icon_name} />
+                              <span className="ml-2 text-sm text-gray-900">
+                                {summary.value}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      {property.property_summaries
+                        .slice(3, 4)
+                        .map((summary) => (
+                          <div
+                            key={summary.id}
+                            className="flex items-center text-gray-700"
+                          >
+                            <div>
+                              <IconShow iconName={summary.icons.icon_name} />
+                            </div>
+                            <span className="ml-2 text-sm text-blue-900">
+                              {summary.value}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="flex flex-row flex-wrap md:justify-between justify-start items-center gap-[5px] sm:gap-[25px]">
+                      {/* Buttons */}
+                      <div className="flex">
+                        <div className="mr-[6px]">
+                          <Link
+                            href={`/Property/${property.property_id}`}
+                            style={{
+                              background:
+                                "linear-gradient(90deg, #313881, #0678B4)",
+                            }}
+                            className="text-[11px] md:text-[14px] xl:text-[16px] h-[40px] sm:px-4 px-[5px] py-2 text-white font-semibold rounded-md"
+                            onClick={() => handleCardClick(index)}
+                          >
+                            See Details
+                          </Link>
+                        </div>
+
+                        <div>
+                          <Link
+                            href={`/Property/${property.property_id}`}
+                            style={{
+                              background:
+                                "linear-gradient(90deg, #313881, #0678B4)",
+                            }}
+                            className="text-[11px] md:text-[14px] xl:text-[16px] h-[40px] sm:px-4 py-2 px-[5px] text-white font-semibold rounded-md"
+                            onClick={() => handleCardClick(index)}
+                          >
+                            Book Now
+                          </Link>
+                        </div>
+                      </div>
+                      <div className="md:hidden block mt-[10px]">
+                        <a
+                          href={`tel:${contactNumber?.Phone}`}
+                          className="mr-[-1px] ml-0"
+                        >
+                          <div className="phone-call md:w-[50px] md:h-[50px] w-[37px] h-[37px] ml-[15px]">
+                            <FaPhone className="i md:ml-[17px] md:mt-[17px] mt-[10px] ml-[10px]" />
+                          </div>
+                        </a>
+                      </div>
+                      <div className="md:hidden block mt-[10px]">
+                        <Link
+                          href={`https://wa.me/${contactNumber?.Phone}`}
+                          className="mx-[10px]"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span className="btn-whatsapp-pulse btn-whatsapp-pulse-border md:w-[50px] md:h-[50px] w-[36px] h-[36px] md:mt-[0px] mt-[-5px] ml-[15px]">
+                            <FaWhatsapp className="w-[25px] h-[25px] text-white" />
+                          </span>
+                        </Link>
+                      </div>
+                      <div className="md:block hidden">
+                        <div className="flex justify-start md:justify-start">
+                          <div className="flex items-center">
+                            <span className="text-black md:text-[16px] text-[14px] font-bold">
+                              For instant service:{" "}
+                            </span>
+                            <div className="mr-[5px] mt-[10px]">
+                              <a
+                                href={`tel:${contactNumber?.Phone}`}
+                                className="mx-[10px]"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <div className="phone-call md:w-[50px] md:h-[50px] w-[36px] h-[36px] ml-[15px]">
+                                  <FaPhone className="i md:ml-[17px] md:mt-[17px] mt-[8px] ml-[11px]" />
+                                </div>
+                              </a>
+                            </div>
+                            <div>
+                              <Link
+                                href={`https://wa.me/${contactNumber?.Phone}`}
+                                className="mx-[10px]"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <span className="btn-whatsapp-pulse btn-whatsapp-pulse-border md:w-[50px] md:h-[50px] w-[36px] h-[36px] md:mt-[0px] mt-[-5px]">
+                                  <FaWhatsapp className="w-[25px] h-[25px] text-white" />
+                                </span>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
 
       {/* Pagination Controls */}
       {filteredData.length > 0 && (

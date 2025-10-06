@@ -11,26 +11,20 @@ const inter = Inter({
   display: "swap",
 });
 
-// SEO metadata object
 export const metadata = {
-  title: "Bojra - Best Houseboat of Tanguar Haor",
-  description:
-    "Discover Tanguar Haor (টাঙ্গুয়ার হাওর) with the best houseboats like Bojra Houseboat (বজরা হাউজবোট), the best houseboat of Tanguar Haor and best houseboat in Tanguar Haor. Explore luxury houseboats, compare Tanguar haor houseboat price, book Tanguar Haor boat rent, and enjoy premium houseboat tours with Tanguar haor tour package.",
-  keywords:
-    "Tanguar Haor, Best houseboat of Tanguar Haor, Best houseboat in Tanguar Haor, Luxury Houseboat, Tanguar haor houseboat price, টাঙ্গুয়ার হাওর, Bojra houseboat, Tanguar Haor boat rent, Tanguar haor tour package, Premium houseboat, বজরা হাউজবোট",
-  metadataBase: new URL("https://www.bojraboat.com"),
-  robots: "index, follow",
-  openGraph: {
-    title: "Bojra - Best Houseboat of Tanguar Haor",
-    description:
-      "Book the best luxury houseboat for your Tanguar Haor tour. Bojra offers premium experiences with comfort and convenience.Discover Tanguar Haor and enjoy a unique stay on the best houseboat of Tanguar Haor, like the luxurious Bojra houseboat or other premium houseboats, while exploring Tanguar Haor boat rent options, comparing Tanguar haor houseboat price, and booking a full Tanguar haor tour package to experience the true beauty of টাঙ্গুয়ার হাওর aboard a বজরা হাউজবোট, the best houseboat in Tanguar Haor.",
-    url: "https://www.bojraboat.com",
-    siteName: "Bojra Tours",
-    type: "website",
-   
-  },
-  
+  title: 'Bojra - The House Boat',
+  description: 'Luxury houseboat in Tanguar Haor. Discover the Best Houseboats – A Luxurious Floating Experience in Nature.',
+  keywords: [
+    'Tanguar Haor',
+    'Luxury Houseboat',
+    'Bojra',
+    'Sunamganj Travel',
+    'Eco Tourism Bangladesh',
+    'Houseboat Booking',
+    'Bangladesh Travel',
+  ],
 };
+
 
 export default function DashboardLayout({ children }) {
   return (
@@ -40,7 +34,7 @@ export default function DashboardLayout({ children }) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" href="/favicon.ico" />
 
-    
+
 
         {/* Google Tag Manager */}
         <Script

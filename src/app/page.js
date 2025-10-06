@@ -1,53 +1,50 @@
-import propertySummary from "@/services/tour/propertySummary";
 import Banner from "./components/tour/Banner/Banner";
+import Fun from "./components/tour/Fun";
 import Property from "./components/tour/Property/Property";
-import TanguarHaorHouseboat from "./components/tour/TanguarHaorHouseboat";
-import { Roboto } from "next/font/google";
-import PropertyList from "./components/tour/Property/Property";
 
+import { Roboto } from "next/font/google";
+import TanguarHaorHouseboat from "./components/tour/TanguarHaorHouseboat";
+import propertySummary from "@/services/tour/propertySummary";
 const roboto = Roboto({ subsets: ["latin"], weight: ["400"] });
 
-
-export const dynamic = "force-dynamic";
+export const metadata = {
+  title: 'Welcome to Bojra | Book Luxury Houseboats in Tanguar Haor',
+  description: 'Book your dream houseboat experience in Sunamganj. Perfect for romantic getaways, group travel, and nature lovers.',
+  keywords: [
+    'Bojra Houseboat',
+    'Tanguar Haor booking',
+    'Houseboat Bangladesh',
+    'Sunamganj travel deals',
+    'Romantic getaway Bangladesh',
+    'Boat stay',
+    'Nature travel Bangladesh',
+  ],
+};
 
 export default async function Home() {
-  // Fetch data directly in the server component
-  let bannerData = [];
 
-  try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/api/carousel-slider/destination/4`,
-      {
-        cache: "no-store", 
-      }
-    );
+  const locationId = 4;
+  const result = await propertySummary(locationId);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.status}`);
-    }
 
-    bannerData = await response.json();
-  } catch (error) {
-    console.error("Error fetching banner data:", error);
-  }
-const result = await propertySummary(4);
   return (
     <main className={`${roboto.className}`}>
-      {/* Banner Section */}
+
+
+      {/* Banner section */}
       <div className="w-full pt-[36px] md:pt-[50px] relative z-10">
-        <Banner terms={bannerData} />
+        <Banner />
       </div>
 
-      {/* Main Content Wrapper */}
-      <div className="py-[20px] md:py-10 rounded-lg">
+      {/* Main content wrapper */}
+      <div className="py-[20px] md:py-10  rounded-lg">
         <div className="mt-[12px] md:mt-10 w-[100%] md:w-[80%] 2xl:w-[1440px] gap-5 lg:mx-auto">
-          {/* Property List */}
-          <div className="lg:overflow-hidden">
-             <PropertyList initialData={result} id= {4}/>
+          {/* Property list with visible overflow and z-index */}
+          <div className=" lg:overflow-hidden">
+            <Property  propertyData = {result}/>
           </div>
         </div>
       </div>
-
       <TanguarHaorHouseboat />
     </main>
   );
